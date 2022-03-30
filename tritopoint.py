@@ -5,6 +5,7 @@
 '''
 import numpy as np
 import math
+from math import copysign
 
 def dif(u,v):
   s = []
@@ -42,26 +43,23 @@ def prod(u,c):
     v.append(u[i]*c)
   return v
 
-def isin(p,p1,p2,p3):
-  u = dif(p1,p2)
-  v = dif(p3,p2)
-  w = dif(p,p2)
-  l1 = np.dot(u,w)
-  if l1 < 0: 
-    return False
-  l2 = np.dot(v,w)
-  if l2 < 0: 
-    return False
-  u = dif(p1,p3)
-  v = dif(p2,p3)
-  w = dif(p,p3)
-  l1 = np.dot(u,w)
-  if l1 < 0: 
-    return False
-  l2 = np.dot(v,w)
-  if l2 < 0: 
-    return False
-  return True
+def isin(p, a, b, c):
+  def angle(p, a, b):
+    a = np.subtract(a, p)
+    b = np.subtract(b, p)
+    a = a / np.linalg.norm(a)
+    b = b / np.linalg.norm(b)
+    return math.acos(np.dot(a, b))
+  # We should have a full 360-degrees with no less
+  # and no more. The only difference being error
+  # from finite precision and PI.
+  aa = angle(p, a, b)
+  ab = angle(p, b, c)
+  ac = angle(p, c, a)
+
+  #print('angle check', aa, ab, ac, aa + ab + ac, math.pi * 2 - (aa + ab + ac))
+
+  return (math.pi * 2 - (aa + ab + ac)) < 0.1
 
 def eq(u, v):
   if len(u) != len(v):
@@ -71,34 +69,81 @@ def eq(u, v):
       return False
   return True
 
-def line_intersect_tri(q0, w, p1, p2, p3):
-  u  = dif(p1,p2)
-  v  = dif(p3,p2)
-  n  = list(np.cross(u,v))
-  p0 = prod(add(add(p1,p2),p3),1/3.)
-  a = np.dot(w, n)
-  if a == 0:
-    print('external point via a')
+def debug_vector(path, a, b):
+  with open(path, 'w') as fd:
+    fd.write('%s %s %s %s %s %s\n' % (a[0], a[1], a[2], b[0], b[1], b[2]))
+
+def debug_point(path, a):
+  with open(path, 'w') as fd:
+    fd.write('%s %s %s\n' % (a[0], a[1], a[2]))
+
+def debug_dot(path, a):
+  with open(path, 'w') as fd:
+    fd.write('%s %s %s\n' % (a[0], a[1], a[2]))
+
+def debug_triangle(path, a, b, c):
+  with open(path, 'w') as fd:
+    fd.write('%s %s %s\n' % (a[0], a[1], a[2]))
+    fd.write('%s %s %s\n' % (b[0], b[1], b[2]))
+    fd.write('%s %s %s\n' % (c[0], c[1], c[2]))
+    fd.write('%s %s %s\n' % (a[0], a[1], a[2]))
+
+def line_intersect_tri(q0, w, p1, p2, p3, dbg=False):
+  # https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersectioni
+
+  # The equation for a point on a plane. Where:
+  #   - n is the plane normal
+  #   - p is a point to be tested
+  #   - p_0 is a known valid point on the plane
+  #   - (p - p_0) * n = 0
+
+  # The equation for a line is:
+  #   - p = l_0 + l * d
+  #   - d is a member of the set of real numbers
+  #   - l_0 is any point on the line
+  #   - l is the vector representing the direction of the line
+  #   - d is the scalar representing the distance along the line from point l_0
+  
+  # Using basic algebra replace the point to be tested with the equation of a
+  # line. Then, reorder the equation so that we solve for `d` the distance along
+  # the line respective of the line vector.
+
+  # Using p1 (one point from the triangle) as a point on the plane with n being
+  # the triangle/plane normal. The `q0` is a point on the line, `w` is the line
+  # vector.
+ 
+  n = np.cross(p2 - p1, p3 - p1)
+  n = n / np.linalg.norm(n)  
+
+  denom = np.dot(w, n)
+  if np.linalg.norm(denom) == 0:
+    # The line and plane are parallel.
+    #print('paralle')
     return None
 
-  #pi = add(q0,prod(w,-np.dot(dif(q0,p0),n)/np.dot(w,n)))
-  pi = add(q0,prod(w, -np.dot(dif(q0,p0),n) / a))
+  numer = np.dot((p1 - q0), n)
 
-  if isin(pi,p1,p2,p3):
-    w = divs(w, mag(w))
-    wa = sub(pi, q0)
-    wa = divs(wa, mag(wa))
+  if np.linalg.norm(numer) == 0:
+    # The line is contained completely in the plane.
+    #print('line completed in plane')
+    return None
 
-    print('w=%s wa=%s' % (w, wa))    
+  d = numer / denom
 
-    if eq(w, wa):
-      print(pi, " internal point")
-      return pi
+  w = w / np.linalg.norm(w)
 
-    print(pi, 'backwards intersection')
+  p = q0 + w * d
+
+  # See if the intersection point is within the triangle.
+  if isin(p, p1, p2, p3):
+    wa = p - q0
+    wa = wa / np.linalg.norm(wa)
+
+    if 1.0 - np.dot(w, wa) < 0.001:
+      return p
+
     return None
   else:
-    print(pi, " external point")
     return None
 
 if __name__ == '__main__':
