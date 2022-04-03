@@ -91,6 +91,14 @@ class ObjectExport(bpy.types.Operator, ExportHelper):
     def write_object_mesh(self, obj, fdj):
         out = []
 
+        version = 1
+        # This should be analogous to specularity.
+        reflect = obj.get('reflect', 0.5)
+        # This should be analogous to smoothness. With zero
+        # there is no random variation in the reflection
+        # vector. This unit is expected to be in degrees. 
+        reflect_vector_noise = obj.get('reflect_vector_noise', 0.0) 
+
         print('obj', obj)
         print('obj.data', obj.data)
         
@@ -109,10 +117,12 @@ class ObjectExport(bpy.types.Operator, ExportHelper):
           We can do a lot here. Using nodes we can produce a image surface
           that represents reflectivity and absorption. Then, finally, we can
           write that data out here, in binary if needed, which can be used
-          by the simulator.
+          by the simulator... That is a lot of work but it does become a big
+          possibility with Blender doing the heavy lifting.
         '''
         fdj['meshes'].append({
           'polygons': out,
+          'meta': [version, reflect, reflect_vector_noise],
         })
 
         data.free()
