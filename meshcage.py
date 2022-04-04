@@ -200,7 +200,7 @@ class MeshCage:
     
 
 if __name__ == '__main__':
-  data = WLMEData.load_by_path('100meterpond.wlmadata')
+  data = WLMEData.load_by_path('testchamber.wlmadata')
 
   #fd = open('points.txt', 'w') 
 
@@ -213,7 +213,7 @@ if __name__ == '__main__':
   # Lets play like we are using sound card sample rates!!! Cheap!!!
   digital_sps = 192000
   # Create a chirp that will be TX'ed into the water.
-  chirp = get_chirp(digital_sps, 0.1, 64000, 96000)
+  chirp = get_chirp(digital_sps, 0.2, 32000, 90000)
 
   np.save('chirp.npy', chirp, False)
 
@@ -226,9 +226,13 @@ if __name__ == '__main__':
   for rx in data.rx:
     rx_streams.append(np.zeros((int(sample_time * digital_sps),), np.float128))
 
-  rc_limit = 100
+  #rc_limit = 10000
+  #for rc in range(0, rc_limit):
 
-  for rc in range(0, rc_limit):
+  strike_limit = 100
+  strike_count = 0
+
+  while strike_count < strike_limit:
     # Create a ray from the TX source with a random trajectory. Let it
     # bounce around and each contact with a surface see if we can ray
     # trace to each RX sensor. If we can ray trace to an RX isotrophic
@@ -311,7 +315,8 @@ if __name__ == '__main__':
             # The heart of the simulator is here.
             rx_streams[rx_ndx][sample_index:sample_index+sz] = \
               tmp[0:sz] * energy * distloss
-          print('.', rc / rc_limit)
+          print('.', strike_count / strike_limit)
+          strike_count += 1
         else:
           # It hit something before it got there.
           pass

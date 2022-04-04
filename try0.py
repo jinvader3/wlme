@@ -4,12 +4,6 @@ import numpy.fft as fft
 from tritopoint import line_intersect_plane
 import struct
 
-chirp = np.load('chirp.npy')
-
-rxs = []
-for x in range(0, 16):
-  rxs.append(np.load('rx%s.npy' % x))
-
 class DistDelayCalc:
   def __init__(self):
     self.ants = []
@@ -65,49 +59,72 @@ def fftseg(data, segsz):
 
   return out
  
+chirp = np.load('chirp.npy')
+
+rxs = []
+for x in range(0, 4):
+  data = np.load('rx%s.npy' % x)
+  tmp = np.zeros((len(chirp) * 2 + data.shape[0],), data.dtype)
+  tmp[len(chirp):len(chirp)+len(data)] = data
+  rxs.append(tmp)
+  print('load', np.max(rxs[x]))
+
 dc = DistDelayCalc()
 
 from meshcage import WLMEData
 
-data = WLMEData.load_by_path('./100meterpond.wlmadata')
+data = WLMEData.load_by_path('./testchamber.wlmadata')
 
 t = np.zeros((3,), np.float64)
-for rx in data.rx:
-  t += rx.location
-t = t / len(data.rx)
+#for rx in data.rx:
+#  t += rx.location
+#t = t / len(data.rx)
+t[0] = data.rx[0].location[0]
+t[1] = data.rx[0].location[1]
+t[2] = data.rx[0].location[2]
 
 for rx in data.rx:
   dc.add_ant(rx.location - t)
 
 theta_steps = 1000
-mm = np.zeros((theta_steps, len(chirp)), np.float128)
+
+chop_s = 0
+chop_l = 9000
+
+psz = len(rxs[0]) - len(chirp) * 2
+mm = np.zeros((theta_steps, chop_l), np.float128)
+
+input('chop_s=%s chop_l=%s len(chirp)=%s' % (
+  chop_s, chop_l, len(chirp)
+))
+
 for theta_ndx in range(0, theta_steps):
   theta = np.pi * 2 / theta_steps * theta_ndx
   fvector = np.array([np.cos(theta), np.sin(theta), 0])
   sdelay = dc.calc_from_as_samples(fvector, 1480, 192000)
 
-  m = np.zeros((mm.shape[1],), np.float128)
+  m = np.zeros((psz,), np.float128)
 
-  base = 400
+  base = len(chirp)
   limit = mm.shape[1]
 
   for x in range(0, len(rxs)):
     off = int(sdelay[x] + base)
     assert(off >= 0)
-    rx = rxs[x][off:off + mm.shape[1]]
+    rx = rxs[x][off:off + psz]
     m += rx
 
   out = signal.correlate(m, chirp, mode='full')
   #out = fftseg(out, 128)
   #out = fft.rfft(out)
-  mm[theta_ndx, 0:len(out)] = np.abs(out[0:mm.shape[1]])
+  mm[theta_ndx, :] = np.abs(out[chop_s:chop_s+chop_l])
 
   #out = rx
   #tmp[int(len(out) * 0.02):] = 0
   #out = fft.irfft(tmp)
 
   #print(sdelay)
-  print('theta=%s len(out)=%s' % (theta, len(out)))
+  print('theta=%s' % (theta,))
 #np.save('test.npy', mm)
 
 #mm = np.load('test.npy')
@@ -117,7 +134,7 @@ hmm = np.zeros(mm.shape, np.uint16)
 mm_max = np.max(mm)
 mm_min = np.min(mm)
 mm_delta = mm_max - mm_min
-mm_delta *= 0.2
+print('mm_delta=%s mm_max=%s mm_min=%s' % (mm_delta, mm_max, mm_min))
 tmp = (mm - mm_min) / mm_delta * 0xffff
 tmp[tmp > 0xffff] = 0xffff
 hmm[:] = tmp
