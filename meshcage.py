@@ -41,6 +41,14 @@ def atten_fresh_water_8c_shallow_8ph_approx(freq, meters):
       return meters / 1000 * db
   raise Exception('The frequency is out of upper range.')
 
+def get_zadoff_chu(nzc, q, u):
+  out = np.zeros((nzc,), np.complex128)
+  cf = nzc % 2
+  for n in range(0, nzc):
+    samp = np.exp(0-1j * ((np.pi * u * n * (n + cf + 2 * q)) / nzc))
+    out[n] = samp
+  return out
+
 def get_chirp(sps, time, f0, f1, p2=1.0):
   theta = 0.0
   samps = math.floor(sps * time)
@@ -211,14 +219,16 @@ if __name__ == '__main__':
   wave_velocity = 1480.0
   #wave_velocity = 343.0
   # Lets play like we are using sound card sample rates!!! Cheap!!!
-  digital_sps = 192000
+  digital_sps = 192000 / 10
   # Create a chirp that will be TX'ed into the water.
-  chirp = get_chirp(digital_sps, 0.2, 32000, 90000)
+  chirp = get_chirp(digital_sps, 0.1, 1450 * 2, 1520 * 2)
+  #chirp = get_zadoff_chu(353, 1, 7).real
+  #chirp = np.random.random(353)
 
   np.save('chirp.npy', chirp, False)
 
   # The total number of seconds to sample for.
-  sample_time = 1
+  sample_time = 3
   # Convert the chirp into the frequency domain.
   chirp_fft = fft.rfft(chirp)
 
@@ -245,9 +255,12 @@ if __name__ == '__main__':
     traveldist = 0.0
     energy = 1.0
 
-    for p in data.cage.ray_bounces(ray, 10):
+    lastu = ray.u
+
+    for p in data.cage.ray_bounces(ray, 2):
       # How far was this first run/jump?
-      jumpdist = np.linalg.norm(p[0] - ray.u)
+      jumpdist = np.linalg.norm(p[0] - lastu)
+      lastu = p[0]
       traveldist += jumpdist
       # Verify version 1 meta-data.
       assert(p[2][0])
@@ -288,15 +301,15 @@ if __name__ == '__main__':
           distloss = 1 / (totaldist ** 2.0 * math.pi * 4)
 
           binfreqs = fft.rfftfreq(len(chirp), 1.0 / digital_sps)
-          #'''
+          '''
           tmp_fft = np.zeros((len(chirp_fft),), chirp_fft.dtype)
           for x in range(0, len(tmp_fft)):
             fldb = atten_fresh_water_8c_shallow_8ph_approx(binfreqs[x], totaldist)
             fl = 1 / (10 ** (fldb / 20))
             tmp_fft[x] = chirp_fft[x] * fl
           tmp = fft.irfft(tmp_fft) 
-          #'''
-          #tmp = chirp
+          '''
+          tmp = chirp
           #print('totaldist=%s energy=%s distloss=%s fl=%s' % (totaldist, energy, distloss, fl))
 
           # Convert the delay distance into seconds but add the final distance.
@@ -313,7 +326,7 @@ if __name__ == '__main__':
           sz = min(chirp.shape[0], rx_streams[0].shape[0] - sample_index)
           if sz > 0:
             # The heart of the simulator is here.
-            rx_streams[rx_ndx][sample_index:sample_index+sz] = \
+            rx_streams[rx_ndx][sample_index:sample_index+sz] += \
               tmp[0:sz] * energy * distloss
           print('.', strike_count / strike_limit)
           strike_count += 1
@@ -325,14 +338,3 @@ if __name__ == '__main__':
     print('saving', rx_ndx)
     rxs = rx_streams[rx_ndx]
     np.save('rx%s.npy' % rx_ndx, rxs, False)
-
-  '''
-  with open('scene.txt', 'w') as fd:
-    for mesh in data.meshes.meshes:
-      for face in mesh.faces:
-        fd.write('\n')
-        fd.write('%s %s %s\n' % (face[0][0], face[0][1], face[0][2]))
-        fd.write('%s %s %s\n' % (face[1][0], face[1][1], face[1][2]))
-        fd.write('%s %s %s\n' % (face[2][0], face[2][1], face[2][2]))
-        fd.write('%s %s %s\n' % (face[0][0], face[0][1], face[0][2]))
-  '''
