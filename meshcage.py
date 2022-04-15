@@ -10,6 +10,7 @@ import scipy.signal as signal
 from tritopoint import line_intersect_tri
 import math
 import numpy.fft as fft
+import colorsys
 
 # http://resource.npl.co.uk/acoustics/techguides/seaabsorption/
 FRESH_WATER_ATT_1HZ_TO_48KHZ_PER_KM = [
@@ -66,12 +67,14 @@ class Ray:
     self.v = vector
 
 class RX:
-  def __init__(self, location, sensitivity=1.0):
+  def __init__(self, name, location, sensitivity=1.0):
+    self.name = name
     self.location = location
     self.sensitivity = sensitivity
 
 class TX:
-  def __init__(self, location, power):
+  def __init__(self, name, location, power):
+    self.name = name
     self.location = location
     self.power = power
 
@@ -89,12 +92,14 @@ class WLMEData:
     
     for rx in data['rx']:
       self.rx.append(RX(
+        rx['name'],
         np.array(rx['location']), 
         rx['sensitivity']
       ))
 
     for tx in data['tx']:
       self.tx.append(TX(
+        tx['name'],
         np.array(tx['location']),
         tx['power']
       ))
@@ -141,6 +146,7 @@ class MeshCage:
     self.meshes = []
 
   def add_mesh(self, mesh):
+    print('added mesh')
     self.meshes.append(mesh)
 
   def ray_test(self, ray, dbg=False):
@@ -219,9 +225,9 @@ if __name__ == '__main__':
   wave_velocity = 1480.0
   #wave_velocity = 343.0
   # Lets play like we are using sound card sample rates!!! Cheap!!!
-  digital_sps = 192000 / 10
+  digital_sps = 48000
   # Create a chirp that will be TX'ed into the water.
-  chirp = get_chirp(digital_sps, 0.1, 1450 * 2, 1520 * 2)
+  chirp = get_chirp(digital_sps, 0.1, 1479 * 2 - 100, 1481 * 2 - 100)
   #chirp = get_zadoff_chu(353, 1, 7).real
   #chirp = np.random.random(353)
 
@@ -239,7 +245,7 @@ if __name__ == '__main__':
   #rc_limit = 10000
   #for rc in range(0, rc_limit):
 
-  strike_limit = 100
+  strike_limit = 1000
   strike_count = 0
 
   while strike_count < strike_limit:
@@ -337,4 +343,5 @@ if __name__ == '__main__':
   for rx_ndx in range(0, len(rx_streams)):
     print('saving', rx_ndx)
     rxs = rx_streams[rx_ndx]
-    np.save('rx%s.npy' % rx_ndx, rxs, False)
+    rx_name = data.rx[rx_ndx].name
+    np.save('%s.npy' % rx_name, rxs, False)

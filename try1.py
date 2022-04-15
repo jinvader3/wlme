@@ -6,7 +6,7 @@ from tritopoint import line_intersect_plane
 import struct
 from meshcage import WLMEData
 
-DIGITAL_SPS = 192000 / 10
+DIGITAL_SPS = 48000
 
 def beam(ax, ay, az, pad, rxs):
   bdx = ax - rxlocs[0][0]
@@ -27,7 +27,6 @@ def beam(ax, ay, az, pad, rxs):
   return k
 
 def output_image(mm, path='/run/user/1000/test.data'):
-
   #for x in range(0, mm.shape[1]):
   #  mm[:, x] -= np.average(mm[:, x])
   #mm.swapaxes(1, 0)
@@ -67,90 +66,94 @@ data = WLMEData.load_by_path('./testchamber.wlmadata')
 
 pad = len(chirp) * 2
 
+data.rx.sort(key=lambda x: int(x.name[2:]))
+
 rxs = []
 for x in range(0, len(data.rx)):
-  _data = np.load('rx%s.npy' % x)
+  rx_name = data.rx[x].name
+  _data = np.load('%s.npy' % rx_name)
   tmp = np.zeros((pad * 2 + _data.shape[0],), _data.dtype)
   tmp[pad:pad+len(_data)] = _data
   rxs.append(tmp)
-  print('load', np.max(rxs[x]))
+  print('load', rx_name)
 
-rxlocs = []
-#rxlocs.append(np.array([0, 0, 0]))
-
-for i in range(1, len(data.rx)):
-  rx = data.rx[i]
-  #loc = rx.location - data.rx[0].location
-  rxlocs.append(rx.location)
-
-ox = rxlocs[0][0]
-oy = rxlocs[0][1]
-oz = rxlocs[0][2]
-w = 200
-
-'''
-for y in range(0, mm.shape[0]):
-  ay = y / mm.shape[0] * h - h * 0.5 + oy
-  print(ay, y / mm.shape[0])
-  for x in range(0, mm.shape[1]):
-    ax = x / mm.shape[1] * w - w * 0.5 + ox
-    e = np.sum(signal.correlate(k, chirp, mode='same'))
-    mm[y][x] = e
-'''
-
-mc = np.ones((w, w), np.float128)
-mm = np.zeros((w, w), np.float128)
-
+w = 20
+h = 40000
+mc = np.ones((w, h), np.float128)
+mm = np.zeros((w, h), np.float128)
 mm[:, :] *= 0.00001
 
-most = []
-
-origin = np.array([ox, oy, oz])
+wave_velocity = 1490
+ula_d = 1
 
 cy = 0
-while True:
-  urv = np.random.random(3) * 2 - 1
-  rv = urv * w - w * 0.5 + origin
-  k = beam(rv[0], rv[1], rv[2], pad, rxs)
-  #k = k[0:4000]
-  e = np.abs(signal.correlate(k, chirp, mode='same'))
 
-  urv = urv / np.linalg.norm(urv)
+thetas = np.linspace(0, np.pi, w)
+for y in range(0, len(thetas)):
+  theta = thetas[y]
+
+  # The array design frequency.
+  ula_f = wave_velocity / ula_d
+
+  print('ula_f=%s y=%s theta=%s' % (ula_f, y / len(thetas), theta))
+
+  ww = np.zeros((len(rxs),), np.complex128)
+  for i in range(0, len(rxs)):
+    ww[i] = np.exp(-1j * np.pi * math.cos(theta) * i)
+
+  #print('ww', ww) 
+ 
+  # lower sidelobes but widen main lobe
+  # triangular window
+  #for i in range(0, len(rxs)):
+  #  ww[i] *= np.sin(i / len(rxs) * np.pi)
   
-  y = int((math.atan2(urv[2], urv[0]) + np.pi) / (np.pi * 2) * w)
-  xp = w / e.shape[0]
-  for i in range(0, e.shape[0]):
-    v = e[i]
-    x = int(xp * i)
-    #point = urv * (i / DIGITAL_SPS * 1480)
-    #x = int(point[0] * 1 + mm.shape[0] * 0.5)
-    #y = int(point[1] * 1 + mm.shape[1] * 0.5)
-    try:
-      if x >= 0 and y >= 0:
-        mm[x, y] += v
-        mc[x, y] += 1.0
-    except IndexError:
-      break
-    
-  cy += 1
-  if cy % 100 == 0:
-    print('@', mc)
-    output_image(mm / mc)
+  k = np.zeros((rxs[0].shape[0],), np.complex128)
+  for i in range(0, len(rxs)):
+    k += rxs[i] * ww[i] 
 
-  '''
-  most.append((e, tuple(rv)))
-  i += 1
-  if i % 100 == 0:
-    most.sort(key=lambda x: x[0], reverse=True)
-    while len(most) > 1000:
-      most.pop()
-    print('=')
-    with open('test.plot', 'w') as fd:
-      for v in most:
-        fd.write('%s %s %s\n' % (v[1][0], v[1][1], v[1][2]))
-  '''
+  k = signal.correlate(k, chirp, mode='same').real
+  #k = np.abs(k)
 
-# Get average.
+  for i in range(0, len(k)):
+    mm[y, int(i / len(k) * h)] += k[i]
+    mc[y, int(i / len(k) * h)] += 1
+
 mm = mm / mc
 
+q = np.zeros((mm.shape[1], 2), np.float64)
 
+qq = np.zeros((400, 400), np.float64)
+qqc = np.zeros((400, 400), np.float64)
+
+qqc[:, :] = 0.000001
+
+for x in range(0, mm.shape[1]):
+  s = np.array([0, 0], np.float64)
+  for y in range(0, mm.shape[0] // 4):
+    t = (y / mm.shape[0]) * np.pi * 2
+    v = np.array([np.cos(t), np.sin(t)])
+    s += v * mm[y, x]
+  
+  a = math.atan2(s[1], s[0])
+
+  rx = int(np.cos(a) * (x / mm.shape[1]) * 200) + 200
+  ry = int(np.sin(a) * (x / mm.shape[1]) * 200) + 200
+  qq[ry, rx] += np.linalg.norm(s)
+  qqc[ry, rx] += 1
+
+
+  q[x, 0] = a
+  q[x, 1] = np.linalg.norm(s)
+
+b = 400
+q[:, 0] = signal.convolve(q[:, 0], np.ones((b,), q.dtype) / b, mode='same')
+
+with open('test.plot', 'w') as fd:
+  for x in range(0, q.shape[0]):  
+    fd.write('%s %s\n' % (q[x, 0], q[x, 1]))
+
+for y in range(0, mm.shape[0]):
+  mm[y, :] -= np.average(mm[y, :])
+
+output_image(qq / qqc)

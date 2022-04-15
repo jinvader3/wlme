@@ -121,6 +121,7 @@ class ObjectExport(bpy.types.Operator, ExportHelper):
           possibility with Blender doing the heavy lifting.
         '''
         fdj['meshes'].append({
+          'name': obj.name,
           'polygons': out,
           'meta': [version, reflect, reflect_vector_noise],
         })
@@ -135,12 +136,14 @@ class ObjectExport(bpy.types.Operator, ExportHelper):
         if wlme_type == 'tx':
             wlme_power = obj.get('wlme_power', 1.0)
             fdj[wlme_type].append({
+              'name': obj.name,
               'location': [obj.location[0], obj.location[1], obj.location[2]],
               'power': wlme_power,
             })
         elif wlme_type == 'rx':
             wlme_sensitivity = obj.get('wlme_sensitivity', 1.0)
             fdj[wlme_type].append({
+              'name': obj.name,
               'location': [obj.location[0], obj.location[1], obj.location[2]],
               'sensitivity': wlme_sensitivity,
             })
