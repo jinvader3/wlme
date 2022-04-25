@@ -65,16 +65,17 @@ tx_loc = data.tx[0].location
 wv = 1490
 digital_sps = 256000
 
-hh = 500
+hh = 200
 q = np.zeros((hh, hh), np.float128)
 qc = np.zeros((hh, hh), np.float128)
 qc[:, :] = 0.00001
 
-ww = 200
+ww = 100
 
 a = data.cage.meshes[0].faces[0][0]
 z = 0.0
 
+a = rxl[0]
 pp = a - rxl[0]
 
 yspace = np.linspace(pp[0] - ww, pp[0] + ww, q.shape[0])
