@@ -112,6 +112,8 @@ class ObjectExport(bpy.types.Operator, ExportHelper):
             for vert in face.verts:
                 vertex = vert.co
                 out_face.append([vertex[0], vertex[1], vertex[2]])
+                print('writing vert')
+            print('writing face')
             out.append(out_face)
         '''
           We can do a lot here. Using nodes we can produce a image surface
@@ -178,11 +180,11 @@ class ObjectExport(bpy.types.Operator, ExportHelper):
             if obj.type == 'MESH':
                 print('got mesh')
                 # convert to triangles write to output
-                #self.triangulate_object(obj)
+                self.triangulate_object(obj)
                 self.write_object_mesh(obj, fdj)
             elif obj.type == 'SURFACE':
                 # pull out nurbs convert to mesh then write to output
-                #self.triangulate_object(obj)
+                self.triangulate_object(obj)
                 self.write_object_mesh(obj, fdj)
             elif obj.type == 'EMPTY':
                 print('got empty')
