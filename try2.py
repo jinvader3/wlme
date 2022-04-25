@@ -41,7 +41,7 @@ def output_image(mm, path='/run/user/1000/test.data'):
   hmm.tofile(path)
   print(hmm.shape)
 
-chirp = signal.hilbert(np.load('chirp.npy'))
+chirp = np.load('chirp.npy')
 data = WLMEData.load_by_path('./testchamber.wlmadata')
 
 pad = len(chirp) * 2
@@ -57,7 +57,7 @@ for x in range(0, len(data.rx)):
   _data = np.load('%s.npy' % rx_name)
   tmp = np.zeros((pad * 2 + _data.shape[0],), _data.dtype)
   tmp[pad:pad+len(_data)] = _data
-  rxs.append(signal.hilbert(tmp))
+  rxs.append(tmp)
   print('load', rx_name)
 
 tx_loc = data.tx[0].location
@@ -65,10 +65,12 @@ tx_loc = data.tx[0].location
 wv = 1490
 digital_sps = 256000
 
-hh = 100
+hh = 500
 q = np.zeros((hh, hh), np.float128)
+qc = np.zeros((hh, hh), np.float128)
+qc[:, :] = 0.00001
 
-ww = 5
+ww = 200
 
 a = data.cage.meshes[0].faces[0][0]
 z = 0.0
@@ -84,6 +86,10 @@ SA = np.zeros((len(rxs),), np.float64)
 
 #print(a)
 #exit()
+
+corr = []
+for n in range(0, len(rxs)):
+  corr.append(signal.correlate(rxs[n], chirp, mode='same'))
 
 for yi in range(0, len(yspace)):
   print(yi / len(yspace))
@@ -104,14 +110,15 @@ for yi in range(0, len(yspace)):
       #theta = math.atan2(upos[1], upos[0])
       #w = np.exp(-1j * np.pi * math.cos(theta) * n)
       #frac_time = frac_delay / digital_sps
-      v = n_rxs[samp_delay:samp_delay+len(chirp)]
-      v = np.sum((v * np.conjugate(chirp)).real)
-      SA[n] = v
+      
+      # new code
+      SA[n] = corr[n][samp_delay]
+      # old code
+      #v = n_rxs[samp_delay:samp_delay+len(chirp)]
+      #v = np.sum((v * np.conjugate(chirp)).real)
+      #SA[n] = v
 
     #SA = SA * w
-
-    px = int(xi / len(xspace) * q.shape[1])
-    py = int(yi / len(yspace) * q.shape[0])
 
     #'''
     ss = 0
@@ -124,8 +131,11 @@ for yi in range(0, len(yspace)):
     S_dmas = ss
     #'''
 
-    q[py, px] = S_dmas # np.sum(SA)
+    px = int(xi / len(xspace) * q.shape[1])
+    py = int(yi / len(yspace) * q.shape[0])
+    q[py, px] += S_dmas # np.sum(SA)
+    qc[py, px] += 1
     
-output_image(q)
+output_image(q / qc)
 
 

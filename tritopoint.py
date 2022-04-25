@@ -154,15 +154,6 @@ def line_intersect_tri(q0, w, p1, p2, p3, dbg=False):
   else:
     return None
 
-if __name__ == '__main__':
-  p1 = [0,0,0]
-  p2 = [10,0,0]
-  p3 = [0,10,0]
-  q0 = [5,5,-5]
-  w  = [0,0,1]
-
-  line_intersect_tri(q0, w, p1, p2, p3)
-
 def line_intersect_plane(q0, w, p1, n):
   # https://en.wikipedia.org/wiki/Line%E2%80%93plane_intersectioni
 
@@ -197,7 +188,7 @@ def line_intersect_plane(q0, w, p1, n):
   if np.linalg.norm(numer) == 0:
     # The line is contained completely in the plane.
     #print('line completed in plane')
-    raise Exception('Line is inside plane!')
+    return q0, 1
 
   d = numer / denom
 
@@ -208,17 +199,18 @@ def line_intersect_plane(q0, w, p1, n):
   # Don't backfire into the plane.
   wa = p - q0
   wa = wa / np.linalg.norm(wa)
-
   if 1.0 - np.dot(w, wa) < 0.001:
-    return p
-  return None
+    return p, 1
+  return p, -1
 
 if __name__ == '__main__':
-  p1 = [0,0,0]
-  p2 = [10,0,0]
-  p3 = [0,10,0]
-  q0 = [5,5,-5]
-  w  = [0,0,1]
+  p1 = np.array([0,0,0])
+  p2 = np.array([10,0,0])
+  p3 = np.array([0,10,0])
+  q0 = np.array([5,5,-5])
+  w  = np.array([0,0,1])
 
-  line_intersect_tri(q0, w, p1, p2, p3)
+  # [5, 5, 0]
+
+  print(line_intersect_tri(q0, w, p1, p2, p3))
 

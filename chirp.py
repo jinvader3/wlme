@@ -32,10 +32,10 @@ def get_chirp(sps, time, f0, f1, p2=1.0):
   return out
 
 def main(args):
-  digital_sps = 48000
-  chirp = get_chirp(digital_sps, 0.1, 1479 * 2 - 100, 1481 * 2 - 100)
-  #chirp = get_zadoff_chu(353, 1, 7).real
-  #chirp = np.random.random(353)
+  digital_sps = 16000
+  #chirp = get_chirp(digital_sps, 0.1, 500, 6000)
+  chirp = get_zadoff_chu(353, 1, 7).real
+  #chirp = np.random.random(1000)
 
   np.save('chirp.npy', chirp, False)
 

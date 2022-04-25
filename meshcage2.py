@@ -166,6 +166,12 @@ class MeshCage:
     
 def main(args):
   txs = np.load(args.tx)
+
+  # The transmit signal is expected to be at the same SPS as the output SPS, therefore,
+  # we transform it here. Likely, upscaling the sampling rate.
+  if args.osps != args.sps:
+    txs = signal.resample(txs, int(args.sps / args.osps * txs.shape[0]))
+
   data = WLMEData.load_by_path(args.wlma)
   wave_velocity = args.wv
   digital_sps = args.sps
@@ -174,6 +180,8 @@ def main(args):
   rx_streams = []
   for rx in data.rx:
     rx_streams.append(np.zeros((int(sample_time * digital_sps),), np.float128))
+
+  fd = open('test.plot', 'w')
 
   # 1. randomly select a triangle from a random mesh
   # 2. randomly pick point on surface of triangle
@@ -196,6 +204,7 @@ def main(args):
     # Somewhere between d and e.
     e = dc * random.random() + d
     # [3]
+    fd.write('%s %s %s\n' % (e[0], e[1], e[2]))
     tx = np.array(data.tx[0].location)
     tx_to_e = e - tx
     tx_to_e = tx_to_e / np.linalg.norm(tx_to_e)
@@ -222,9 +231,15 @@ def main(args):
       if np.linalg.norm(e - hit[0]) > 0.001:
         continue
       rx_dist = np.linalg.norm(hit[0] - rx_ray.u)
-      dist = rx_dist + tx_dist
+      dist = rx_dist #+ tx_dist
       secs = dist / wave_velocity
-      samp_index = int(secs * digital_sps)
+
+      full_samp_index = secs * digital_sps
+      samp_index = int(full_samp_index)
+      frac_samp_index = full_samp_index - samp_index
+      if frac_samp_index >= 0.5:
+        samp_index += 1
+
       sz = min(txs.shape[0], rxs.shape[0] - samp_index)
       # TODO: reflector energy loss needed
       loss_dist = 1.0 / (dist ** 2.0 * np.pi * 4.0)   
@@ -235,6 +250,10 @@ def main(args):
   for rx_ndx in range(0, len(rx_streams)):
     print('saving', rx_ndx)
     rxs = rx_streams[rx_ndx]
+    # Either lower or raise the sampling rate OR it stays the same.
+    if args.osps != args.sps:
+      print('resampling stream')
+      rxs = signal.resample(rxs, int(args.osps / args.sps * rxs.shape[0]))
     rx_name = data.rx[rx_ndx].name
     np.save('%s.npy' % rx_name, rxs, False)
 
@@ -244,6 +263,7 @@ if __name__ == '__main__':
   ap.add_argument('--wlma', type=str, required=True, help='The WLMA (blender export) data.')
   ap.add_argument('--wv', type=float, required=True, help='The wave velocity.')
   ap.add_argument('--sps', type=int, required=True, help='The sampling rate.')
+  ap.add_argument('--osps', type=int, required=True, help='The output sampling rate.')
   ap.add_argument('--time', type=float, required=True, help='The sampling time in seconds.')
   ap.add_argument('--cycles', type=int, required=True, help='Number of photons.')
   main(ap.parse_args())

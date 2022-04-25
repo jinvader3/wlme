@@ -61,7 +61,7 @@ def output_image(mm, path='/run/user/1000/test.data'):
   hmm.tofile(path)
   print(hmm.shape)
 
-chirp = np.load('chirp.npy')
+chirp = signal.hilbert(np.load('chirp.npy'))
 data = WLMEData.load_by_path('./testchamber.wlmadata')
 
 pad = len(chirp) * 2
@@ -74,11 +74,11 @@ for x in range(0, len(data.rx)):
   _data = np.load('%s.npy' % rx_name)
   tmp = np.zeros((pad * 2 + _data.shape[0],), _data.dtype)
   tmp[pad:pad+len(_data)] = _data
-  rxs.append(tmp)
+  rxs.append(signal.hilbert(tmp))
   print('load', rx_name)
 
 w = 20
-h = 40000
+h = 10000
 mc = np.ones((w, h), np.float128)
 mm = np.zeros((w, h), np.float128)
 mm[:, :] *= 0.00001
@@ -101,19 +101,17 @@ for y in range(0, len(thetas)):
   for i in range(0, len(rxs)):
     ww[i] = np.exp(-1j * np.pi * math.cos(theta) * i)
 
-  #print('ww', ww) 
- 
-  # lower sidelobes but widen main lobe
-  # triangular window
-  #for i in range(0, len(rxs)):
-  #  ww[i] *= np.sin(i / len(rxs) * np.pi)
-  
+  # hann looked interesting.. almost correct
+
+  ww = ww * signal.windows.hann(len(ww))
+  #ww *= signal.windows.chebwin(len(ww), at=20, sym=False)
+
   k = np.zeros((rxs[0].shape[0],), np.complex128)
   for i in range(0, len(rxs)):
-    k += rxs[i] * ww[i] 
+    k += rxs[i] * ww[i]
 
-  k = signal.correlate(k, chirp, mode='same').real
-  #k = np.abs(k)
+  #k = np.abs(signal.correlate(k, chirp, mode='same'))
+  k = np.abs(k)
 
   for i in range(0, len(k)):
     mm[y, int(i / len(k) * h)] += k[i]
@@ -130,18 +128,20 @@ qqc[:, :] = 0.000001
 
 for x in range(0, mm.shape[1]):
   s = np.array([0, 0], np.float64)
-  for y in range(0, mm.shape[0] // 4):
-    t = (y / mm.shape[0]) * np.pi * 2
+  l = mm.shape[0] // 1
+  for y in range(0, l):
+    t = (y / l) * np.pi * 2
     v = np.array([np.cos(t), np.sin(t)])
-    s += v * mm[y, x]
+    s += v * np.abs(mm[y, x])
   
   a = math.atan2(s[1], s[0])
+
+  #a += x / mm.shape[1] * np.pi * 0.3
 
   rx = int(np.cos(a) * (x / mm.shape[1]) * 200) + 200
   ry = int(np.sin(a) * (x / mm.shape[1]) * 200) + 200
   qq[ry, rx] += np.linalg.norm(s)
   qqc[ry, rx] += 1
-
 
   q[x, 0] = a
   q[x, 1] = np.linalg.norm(s)
@@ -150,10 +150,10 @@ b = 400
 q[:, 0] = signal.convolve(q[:, 0], np.ones((b,), q.dtype) / b, mode='same')
 
 with open('test.plot', 'w') as fd:
-  for x in range(0, q.shape[0]):  
+  for x in range(0, q.shape[0]):
     fd.write('%s %s\n' % (q[x, 0], q[x, 1]))
 
-for y in range(0, mm.shape[0]):
-  mm[y, :] -= np.average(mm[y, :])
+#for y in range(0, mm.shape[0]):
+#  mm[y, :] -= np.average(mm[y, :])
 
 output_image(qq / qqc)
