@@ -12,6 +12,7 @@ import math
 import numpy.fft as fft
 import random
 import argparse
+import os.path
 
 class Ray:
   def __init__(self, origin, vector):
@@ -181,8 +182,6 @@ def main(args):
   for rx in data.rx:
     rx_streams.append(np.zeros((int(sample_time * digital_sps),), np.float128))
 
-  fd = open('test.plot', 'w')
-
   # 1. randomly select a triangle from a random mesh
   # 2. randomly pick point on surface of triangle
   # 3. try to intersect tx; if no LOS then goto 1
@@ -204,7 +203,6 @@ def main(args):
     # Somewhere between d and e.
     e = dc * random.random() + d
     # [3]
-    fd.write('%s %s %s\n' % (e[0], e[1], e[2]))
     tx = np.array(data.tx[0].location)
     tx_to_e = e - tx
     tx_to_e = tx_to_e / np.linalg.norm(tx_to_e)
@@ -247,15 +245,22 @@ def main(args):
         # NOTE: The negative is the phase inversion from a reflection.
         rxs[samp_index:samp_index+sz] += -txs[0:sz] * loss_dist 
 
+  outsz = int(args.osps / args.sps * rx_streams[0].shape[0])
+  outdata = np.zeros((len(rx_streams), outsz,), np.float128)
+
+  print('outsz', outsz)
   for rx_ndx in range(0, len(rx_streams)):
     print('saving', rx_ndx)
     rxs = rx_streams[rx_ndx]
     # Either lower or raise the sampling rate OR it stays the same.
     if args.osps != args.sps:
       print('resampling stream')
-      rxs = signal.resample(rxs, int(args.osps / args.sps * rxs.shape[0]))
+      outdata[rx_ndx, :] = signal.resample(rxs, outsz)
+    else:
+      outdata[rx_ndx, :] = rxs
     rx_name = data.rx[rx_ndx].name
-    np.save('%s.npy' % rx_name, rxs, False)
+
+  np.save(args.outpath, outdata, False)
 
 if __name__ == '__main__':
   ap = argparse.ArgumentParser()
@@ -266,4 +271,5 @@ if __name__ == '__main__':
   ap.add_argument('--osps', type=int, required=True, help='The output sampling rate.')
   ap.add_argument('--time', type=float, required=True, help='The sampling time in seconds.')
   ap.add_argument('--cycles', type=int, required=True, help='Number of photons.')
+  ap.add_argument('--outpath', type=str, required=True, help='Output path for RX streams.')
   main(ap.parse_args())
